@@ -1,0 +1,44 @@
+{
+  "name": "qvac-mesh-workspace",
+  "description": "Local-first Pear desktop workspace for QVAC local and delegated P2P inference.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "pear:dev": "npm run build && pear run --dev .",
+    "dev": "npm run pear:dev"
+  },
+  "pear": {
+    "name": "qvac-mesh-workspace",
+    "pre": "pear-electron/pre",
+    "routes": ".",
+    "links": [
+      "http://localhost:38471",
+      "http://127.0.0.1:38471"
+    ],
+    "gui": {
+      "backgroundColor": "#f6f7f9",
+      "height": 860,
+      "width": 1280
+    },
+    "stage": {
+      "ignore": [
+        ".git",
+        ".DS_Store",
+        "node_modules/.package-lock.json",
+        "dist/test"
+      ]
+    }
+  },
+  "dependencies": {
+    "@qvac/sdk": "^0.11.0",
+    "pear-bridge": "^1.2.5",
+    "pear-electron": "^1.7.28"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "pear": "^2.0.1",
+    "pear-interface": "^1.0.0",
+    "typescript": "^5.8.3"
+  }
+}

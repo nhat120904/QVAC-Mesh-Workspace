@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QVAC Mesh Workspace</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <script defer src="./dist/src/app.js"></script>
+  </head>
+  <body>
+    <div id="titlebar">
+      <pear-ctrl></pear-ctrl>
+      <strong>QVAC Mesh Workspace</strong>
+    </div>
+    <main>
+      <aside>
+        <h1>QVAC Mesh Workspace</h1>
+        <nav aria-label="Workspace sections">
+          <button class="tab active" data-view="dashboard">Dashboard</button>
+          <button class="tab" data-view="chat">Chat</button>
+          <button class="tab" data-view="documents">Documents/RAG</button>
+          <button class="tab" data-view="multimodal">Multimodal</button>
+          <button class="tab" data-view="audio">Audio</button>
+          <button class="tab" data-view="translation">Translation</button>
+          <button class="tab" data-view="voice">Voice</button>
+          <button class="tab" data-view="images">Image generation</button>
+          <button class="tab" data-view="mesh">Mesh/P2P</button>
+          <button class="tab" data-view="settings">Model config</button>
+        </nav>
+      </aside>
+
+      <section id="workspace">
+        <section id="dashboard" class="view active">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Local-first status</p>
+              <h2>Dashboard</h2>
+            </div>
+            <button id="refresh-dashboard">Refresh</button>
+          </header>
+          <div class="grid three" id="status-cards"></div>
+          <div class="panel">
+            <h3>Quick actions</h3>
+            <div class="actions">
+              <button data-jump="chat">Run completion</button>
+              <button data-jump="documents">Ingest document</button>
+              <button data-jump="mesh">Start provider</button>
+              <button data-jump="settings">Configure models</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="chat" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Streaming completion</p>
+              <h2>Chat</h2>
+            </div>
+            <div class="inline-controls">
+              <select id="chat-mode">
+                <option value="normal">Normal</option>
+                <option value="rag">RAG</option>
+                <option value="multimodal">Multimodal</option>
+              </select>
+              <select id="chat-route"></select>
+              <select id="chat-provider"></select>
+            </div>
+          </header>
+          <div id="chat-log" class="log"></div>
+          <form id="chat-form" class="composer">
+            <input id="chat-image" type="file" accept="image/*" multiple />
+            <textarea id="chat-input" rows="3" placeholder="Ask QVAC locally or through a provider"></textarea>
+            <button type="submit">Send</button>
+          </form>
+        </section>
+
+        <section id="documents" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Embeddings + local vector store</p>
+              <h2>Documents/RAG</h2>
+            </div>
+            <select id="rag-route"></select>
+          </header>
+          <div class="grid two">
+            <form id="ingest-form" class="panel">
+              <h3>Upload txt/md</h3>
+              <input id="doc-file" type="file" accept=".txt,.md,text/plain,text/markdown" required />
+              <button type="submit">Ingest with QVAC embeddings</button>
+              <p class="hint">Chunks and vectors are stored locally in app storage.</p>
+            </form>
+            <form id="rag-form" class="panel">
+              <h3>Ask documents</h3>
+              <textarea id="rag-question" rows="5" placeholder="Ask a question about ingested documents"></textarea>
+              <button type="submit">Answer with sources</button>
+            </form>
+          </div>
+          <div id="documents-list" class="list"></div>
+          <div id="rag-answer" class="result"></div>
+        </section>
+
+        <section id="multimodal" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Image chat</p>
+              <h2>Multimodal</h2>
+            </div>
+            <div class="inline-controls">
+              <select id="multimodal-route"></select>
+              <select id="multimodal-provider"></select>
+            </div>
+          </header>
+          <form id="multimodal-form" class="panel">
+            <input id="multimodal-images" type="file" accept="image/*" multiple required />
+            <textarea id="multimodal-prompt" rows="4" placeholder="Ask about one image or compare two images"></textarea>
+            <button type="submit">Send multimodal prompt</button>
+          </form>
+          <div id="multimodal-result" class="result"></div>
+        </section>
+
+        <section id="audio" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Transcription workflow</p>
+              <h2>Audio</h2>
+            </div>
+            <select id="audio-route"></select>
+          </header>
+          <form id="audio-form" class="panel">
+            <input id="audio-file" type="file" accept="audio/*" required />
+            <button type="submit">Transcribe</button>
+          </form>
+          <div class="actions">
+            <button id="summarize-transcript">Summarize</button>
+            <button id="transcript-actions">Action items</button>
+            <button id="transcript-to-rag">Add transcript to RAG</button>
+          </div>
+          <div id="audio-result" class="result"></div>
+        </section>
+
+        <section id="translation" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">QVAC NMT or local LLM fallback</p>
+              <h2>Translation</h2>
+            </div>
+            <select id="translation-route"></select>
+          </header>
+          <form id="translation-form" class="panel">
+            <div class="inline-controls">
+              <input id="translation-from" value="en" aria-label="Source language" />
+              <input id="translation-to" value="it" aria-label="Target language" />
+            </div>
+            <div class="actions">
+              <button type="button" id="translate-last-chat">Use last chat answer</button>
+              <button type="button" id="translate-last-transcript">Use last transcript</button>
+              <button type="button" id="translate-last-document">Use latest document</button>
+            </div>
+            <textarea id="translation-input" rows="6" placeholder="Text to translate"></textarea>
+            <button type="submit">Translate</button>
+          </form>
+          <div id="translation-result" class="result"></div>
+        </section>
+
+        <section id="voice" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">STT -> LLM -> TTS</p>
+              <h2>Voice assistant</h2>
+            </div>
+            <select id="voice-route"></select>
+          </header>
+          <div class="panel">
+            <div class="actions">
+              <button id="voice-record">Start recording</button>
+              <button id="voice-stop" disabled>Stop and run assistant</button>
+            </div>
+            <p class="hint">Recording uses your local microphone and stores turns locally.</p>
+          </div>
+          <div id="voice-log" class="log"></div>
+        </section>
+
+        <section id="images" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">QVAC diffusion</p>
+              <h2>Image generation</h2>
+            </div>
+            <select id="image-route"></select>
+          </header>
+          <form id="image-form" class="panel">
+            <textarea id="image-prompt" rows="4" placeholder="Prompt for image generation"></textarea>
+            <div class="inline-controls">
+              <input id="image-width" type="number" min="64" step="64" value="512" />
+              <input id="image-height" type="number" min="64" step="64" value="512" />
+              <input id="image-steps" type="number" min="1" max="80" value="20" />
+            </div>
+            <button type="submit">Generate</button>
+          </form>
+          <div id="gallery" class="gallery"></div>
+        </section>
+
+        <section id="mesh" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Delegated inference</p>
+              <h2>Mesh/P2P</h2>
+            </div>
+          </header>
+          <div class="grid two">
+            <div class="panel">
+              <h3>This device as provider</h3>
+              <div class="actions">
+                <button id="start-provider">Start provider</button>
+                <button id="stop-provider">Stop provider</button>
+              </div>
+              <pre id="provider-public-key">Provider not running.</pre>
+            </div>
+            <form id="provider-form" class="panel">
+              <h3>Add remote provider</h3>
+              <input id="provider-name" placeholder="Device B LLM provider" />
+              <input id="provider-key" placeholder="Provider public key" required />
+              <input id="provider-capabilities" value="llm,embeddings" />
+              <button type="submit">Save provider</button>
+            </form>
+          </div>
+          <div id="providers-list" class="list"></div>
+        </section>
+
+        <section id="settings" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Model setup</p>
+              <h2>Model config</h2>
+            </div>
+            <button id="save-config">Save config</button>
+          </header>
+          <div id="config-grid" class="grid two"></div>
+        </section>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
