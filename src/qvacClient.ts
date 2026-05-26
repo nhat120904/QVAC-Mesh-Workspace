@@ -249,7 +249,8 @@ export class QvacWorkspace {
 
   private async load(capability: Capability, route: ResolvedRoute): Promise<string> {
     const model = this.config.models[capability];
-    if (!model.enabled || !model.modelSrc.trim()) throw new SetupRequiredError(capability);
+    if (!model.modelSrc.trim()) throw new SetupRequiredError(capability);
+    if (!route.provider && !model.enabled) throw new SetupRequiredError(capability);
 
     const key = JSON.stringify({
       capability,

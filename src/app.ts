@@ -305,7 +305,7 @@ function bindDocuments(): void {
       const response = await api("/documents/ingest", {
         name: file.name,
         text: await file.text(),
-        route: routeFromSelect("rag-route", "embeddings")
+        route: routeFromSelect("rag-route", "embeddings", "rag-provider")
       });
       state = response.state as AppState;
       renderDocuments();
@@ -335,7 +335,7 @@ function bindDocuments(): void {
     const result = qs("#rag-answer");
     result.textContent = "Retrieving chunks and asking QVAC...";
     try {
-      const response = await api("/rag/answer", { question, route: routeFromSelect("rag-route", "llm") });
+      const response = await api("/rag/answer", { question, route: routeFromSelect("rag-route", "llm", "rag-provider") });
       result.textContent = String(response.answer);
     } catch (error) {
       showError(result, error);
@@ -371,7 +371,7 @@ function bindAudio(): void {
     try {
       const response = await api("/audio/transcribe", {
         file: (await filesToUploads([file]))[0],
-        route: routeFromSelect("audio-route", "transcription")
+        route: routeFromSelect("audio-route", "transcription", "audio-provider")
       });
       state = response.state as AppState;
       result.textContent = String(response.text);
@@ -415,7 +415,7 @@ function bindTranslation(): void {
         text: input("#translation-input", HTMLTextAreaElement).value,
         from: input("#translation-from").value,
         to: input("#translation-to").value,
-        route: routeFromSelect("translation-route", "translation")
+        route: routeFromSelect("translation-route", "translation", "translation-provider")
       });
       result.textContent = String(response.answer);
     } catch (error) {
@@ -485,7 +485,7 @@ function bindImages(): void {
           width: Number(input("#image-width").value),
           height: Number(input("#image-height").value),
           steps: Number(input("#image-steps").value),
-          route: routeFromSelect("image-route", "image")
+          route: routeFromSelect("image-route", "image", "image-provider")
         },
         {
           onStatus: (status) => {
@@ -599,18 +599,39 @@ function bindMesh(): void {
       toast(errorMessage(error));
     }
   });
+  renderProviderCapabilityCheckboxes();
   input("#provider-form", HTMLFormElement).addEventListener("submit", async (event) => {
     event.preventDefault();
+    const checked = qsa<HTMLInputElement>("#provider-capabilities input[type=checkbox]:checked")
+      .map((node) => node.value)
+      .filter((value): value is Capability => CAPABILITIES.includes(value as Capability));
+    if (checked.length === 0) {
+      toast("Select at least one capability for the provider.");
+      return;
+    }
     const response = await api("/provider/add", {
       name: input("#provider-name").value,
       publicKey: input("#provider-key").value,
-      capabilities: parseCapabilities(input("#provider-capabilities").value)
+      capabilities: checked
     });
     state = response.state as AppState;
     input("#provider-name", HTMLInputElement).value = "";
     input("#provider-key", HTMLInputElement).value = "";
+    renderProviderCapabilityCheckboxes();
     renderAll();
   });
+}
+
+function renderProviderCapabilityCheckboxes(): void {
+  const root = document.querySelector<HTMLElement>("#provider-capabilities");
+  if (!root) return;
+  const legend = root.querySelector("legend")?.outerHTML ?? "<legend>Capabilities this provider offers</legend>";
+  root.innerHTML =
+    legend +
+    CAPABILITIES.map(
+      (capability) =>
+        `<label class="capability-checkbox"><input type="checkbox" value="${capability}" /> ${escapeHtml(capability)}</label>`
+    ).join("");
 }
 
 function renderAll(): void {
@@ -722,7 +743,7 @@ function renderRouteSelectors(): void {
       .map((mode) => `<option value="${mode}" ${mode === current ? "selected" : ""}>${mode}</option>`)
       .join("");
   }
-  for (const id of ["chat-provider", "multimodal-provider"]) {
+  for (const id of ["chat-provider", "multimodal-provider", "rag-provider", "audio-provider", "translation-provider", "voice-provider", "image-provider"]) {
     const node = document.querySelector<HTMLSelectElement>(`#${id}`);
     if (!node) continue;
     node.innerHTML = `<option value="">First capable</option>${state.config.providers
@@ -829,7 +850,7 @@ async function runTranscriptPrompt(instruction: string): Promise<void> {
   const result = qs("#audio-result");
   result.textContent = "Asking QVAC...";
   try {
-    const response = await api("/audio/transcript-prompt", { instruction, route: routeFromSelect("audio-route", "llm") });
+    const response = await api("/audio/transcript-prompt", { instruction, route: routeFromSelect("audio-route", "llm", "audio-provider") });
     result.textContent = String(response.answer);
   } catch (error) {
     showError(result, error);
@@ -842,7 +863,7 @@ async function runVoiceTurn(): Promise<void> {
     const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
     const response = await api("/voice/turn", {
       file: (await filesToUploads([new File([blob], `voice-${Date.now()}.webm`, { type: blob.type })]))[0],
-      route: routeFromSelect("voice-route", "llm")
+      route: routeFromSelect("voice-route", "llm", "voice-provider")
     });
     const turn = response.turn as { transcript: string; response: string };
     const note = response.ttsNote ? `\n\n(${response.ttsNote})` : "";
@@ -899,14 +920,6 @@ function routeFromSelect(selectId: string, capability: Capability, providerSelec
     mode: input(`#${selectId}`, HTMLSelectElement).value as RouteMode,
     providerId: providerSelectId ? input(`#${providerSelectId}`, HTMLSelectElement).value || undefined : undefined
   };
-}
-
-function parseCapabilities(value: string): Capability[] {
-  const parsed = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item): item is Capability => CAPABILITIES.includes(item as Capability));
-  return parsed.length ? parsed : ["llm"];
 }
 
 type MessageHandle = {

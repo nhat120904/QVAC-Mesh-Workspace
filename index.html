@@ -164,7 +164,10 @@
               <h2>Documents / RAG</h2>
               <p class="subtitle">Chunks, embeddings, and retrieval all happen on this device.</p>
             </div>
-            <label class="field-inline">Route<select id="rag-route"></select></label>
+            <div class="inline-controls">
+              <label class="field-inline">Route<select id="rag-route"></select></label>
+              <label class="field-inline">Provider<select id="rag-provider"></select></label>
+            </div>
           </header>
           <div class="grid two">
             <form id="ingest-form" class="panel">
@@ -214,7 +217,10 @@
               <h2>Audio</h2>
               <p class="subtitle">Whisper runs locally — WAV is the most reliable input.</p>
             </div>
-            <label class="field-inline">Route<select id="audio-route"></select></label>
+            <div class="inline-controls">
+              <label class="field-inline">Route<select id="audio-route"></select></label>
+              <label class="field-inline">Provider<select id="audio-provider"></select></label>
+            </div>
           </header>
           <form id="audio-form" class="panel">
             <input id="audio-file" type="file" accept="audio/*" required />
@@ -235,7 +241,10 @@
               <h2>Translation</h2>
               <p class="subtitle">Uses a configured NMT model or falls back to your local LLM.</p>
             </div>
-            <label class="field-inline">Route<select id="translation-route"></select></label>
+            <div class="inline-controls">
+              <label class="field-inline">Route<select id="translation-route"></select></label>
+              <label class="field-inline">Provider<select id="translation-provider"></select></label>
+            </div>
           </header>
           <form id="translation-form" class="panel">
             <div class="inline-controls">
@@ -260,7 +269,10 @@
               <h2>Voice assistant</h2>
               <p class="subtitle">Push-to-talk loop entirely on-device.</p>
             </div>
-            <label class="field-inline">Route<select id="voice-route"></select></label>
+            <div class="inline-controls">
+              <label class="field-inline">Route<select id="voice-route"></select></label>
+              <label class="field-inline">Provider<select id="voice-provider"></select></label>
+            </div>
           </header>
           <div class="panel">
             <div class="actions">
@@ -279,7 +291,10 @@
               <h2>Image generation</h2>
               <p class="subtitle">Stable Diffusion via QVAC, with a local gallery.</p>
             </div>
-            <label class="field-inline">Route<select id="image-route"></select></label>
+            <div class="inline-controls">
+              <label class="field-inline">Route<select id="image-route"></select></label>
+              <label class="field-inline">Provider<select id="image-provider"></select></label>
+            </div>
           </header>
           <form id="image-form" class="panel">
             <textarea id="image-prompt" rows="4" placeholder="A serene mountain lake at sunrise, ultra detailed, oil painting"></textarea>
@@ -319,7 +334,9 @@
               <h3>Add remote provider</h3>
               <input id="provider-name" placeholder="Device B LLM provider" />
               <input id="provider-key" placeholder="Provider public key" required />
-              <input id="provider-capabilities" value="llm,embeddings" />
+              <fieldset id="provider-capabilities" class="capability-checkboxes">
+                <legend>Capabilities this provider offers</legend>
+              </fieldset>
               <button type="submit" class="primary">Save provider</button>
             </form>
           </div>

@@ -610,6 +610,30 @@ nav {
   align-items: center;
 }
 
+.capability-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 8px;
+  margin: 0;
+}
+
+.capability-checkboxes legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.capability-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .field-inline {
   display: inline-flex;
   align-items: center;
