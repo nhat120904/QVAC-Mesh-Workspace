@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { pcm16ToWav } from "./audio.js";
 import { buildDocumentChunks, buildRagPrompt, formatSources, retrieveTopChunks } from "./rag.js";
-import { errorToMessage, QvacWorkspace } from "./qvacClient.js";
+import { errorToMessage, QvacWorkspace, SetupRequiredError } from "./qvacClient.js";
+import { defaultConfig } from "./defaults.js";
 import { LocalStore, nowIso, uid } from "./storage.js";
 import type { AppState, Capability, ChatMessage, ProviderConfig, RouteRequest, StoredDocument, Transcript, VoiceTurn } from "./types.js";
 
@@ -17,7 +18,6 @@ await boot();
 async function boot(): Promise<void> {
   state = await store.load();
   qvac = new QvacWorkspace(state.config);
-  qvac.onStatus(() => undefined);
 
   const server = createServer((req, res) => {
     void handle(req, res);
@@ -45,11 +45,79 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+    if (url.pathname === "/chat/stream" && req.method === "POST") {
+      const body = await readJson(req);
+      await chatStream(asRecord(body), res);
+      return;
+    }
+    if (url.pathname === "/image/stream" && req.method === "POST") {
+      const body = await readJson(req);
+      await imageStream(asRecord(body), res);
+      return;
+    }
     const body = req.method === "GET" ? undefined : await readJson(req);
     const result = await route(url.pathname, body);
     writeJson(res, 200, { ok: true, ...result });
   } catch (error) {
     writeJson(res, 500, { ok: false, error: errorToMessage(error) });
+  }
+}
+
+async function chatStream(body: Record<string, unknown>, res: ServerResponse): Promise<void> {
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson",
+    "cache-control": "no-cache",
+    "x-accel-buffering": "no"
+  });
+  const send = (obj: Record<string, unknown>): void => {
+    res.write(`${JSON.stringify(obj)}\n`);
+  };
+  const unsubscribe = qvac.onStatus((status) => send({ type: "status", status }));
+  try {
+    const mode = String(body.mode ?? "normal");
+    const prompt = String(body.prompt ?? "");
+    const route = body.route as RouteRequest;
+    if (!prompt.trim()) throw new Error("Prompt is empty.");
+
+    if (mode === "rag") {
+      send({ type: "info", message: "Embedding question and retrieving chunks..." });
+      const answer = await answerWithRag(prompt, route);
+      const assistant: ChatMessage = { role: "assistant", content: answer, at: nowIso(), route: route.mode };
+      send({ type: "token", text: answer });
+      send({ type: "done", message: assistant, state });
+      return;
+    }
+
+    const attachments = await saveUploads((body.attachments ?? []) as UploadInput[], "uploads");
+    const userMessage: ChatMessage = { role: "user", content: prompt, at: nowIso(), attachments };
+    const history = state.chat.slice(-12);
+    state.chat.push(userMessage);
+    send({ type: "user", message: userMessage });
+
+    const result = await qvac.complete(
+      {
+        prompt,
+        history,
+        attachments,
+        onToken: (token) => send({ type: "token", text: token })
+      },
+      route
+    );
+    const assistant: ChatMessage = {
+      role: "assistant",
+      content: result.value,
+      at: nowIso(),
+      route: result.route,
+      providerPublicKey: result.provider?.publicKey
+    };
+    state.chat.push(assistant);
+    await save();
+    send({ type: "done", message: assistant, state });
+  } catch (error) {
+    send({ type: "error", error: errorToMessage(error) });
+  } finally {
+    unsubscribe();
+    res.end();
   }
 }
 
@@ -63,10 +131,25 @@ async function route(pathname: string, body: unknown): Promise<Record<string, un
       qvac.setConfig(state.config);
       await save();
       return statePayload();
+    case "/config/auto-setup":
+      return await autoSetup(asRecord(body));
+    case "/config/reset":
+      return await resetConfig();
     case "/chat/complete":
       return await chatComplete(asRecord(body));
+    case "/chat/clear":
+      state.chat = [];
+      await save();
+      return statePayload();
     case "/documents/ingest":
       return await ingestDocument(asRecord(body));
+    case "/documents/remove":
+      return await removeDocument(asRecord(body));
+    case "/documents/clear":
+      state.documents = [];
+      state.chunks = [];
+      await save();
+      return statePayload();
     case "/rag/answer":
       return await ragAnswer(asRecord(body));
     case "/multimodal":
@@ -180,7 +263,7 @@ async function translateText(body: Record<string, unknown>): Promise<Record<stri
   const result = await qvac.translate(
     String(body.text ?? ""),
     String(body.from ?? "en"),
-    String(body.to ?? "it"),
+    String(body.to ?? "vi"),
     body.route as RouteRequest
   );
   return { answer: result.value };
@@ -192,9 +275,23 @@ async function voiceTurn(body: Record<string, unknown>): Promise<Record<string, 
   const route = body.route as RouteRequest;
   const transcription = await qvac.transcribe(audioPath, { ...route, capability: "transcription" });
   const response = await qvac.complete({ prompt: transcription.value }, { ...route, capability: "llm" });
-  const speech = await qvac.speak(response.value, { ...route, capability: "tts" });
-  const wav = pcm16ToWav(speech.value);
-  const ttsPath = await store.writeBinary("audio", `voice-response-${Date.now()}.wav`, wav);
+
+  let ttsPath: string | undefined;
+  let audioBase64: string | undefined;
+  let ttsNote: string | undefined;
+  try {
+    const speech = await qvac.speak(response.value, { ...route, capability: "tts" });
+    const wav = pcm16ToWav(speech.value);
+    ttsPath = await store.writeBinary("audio", `voice-response-${Date.now()}.wav`, wav);
+    audioBase64 = Buffer.from(wav).toString("base64");
+  } catch (error) {
+    if (error instanceof SetupRequiredError) {
+      ttsNote = "TTS is not configured — returning text only. Enable TTS in Model config to hear the reply.";
+    } else {
+      ttsNote = `TTS failed: ${errorToMessage(error)}`;
+    }
+  }
+
   const turn: VoiceTurn = {
     id: uid(),
     audioPath,
@@ -205,7 +302,62 @@ async function voiceTurn(body: Record<string, unknown>): Promise<Record<string, 
   };
   state.voiceTurns.push(turn);
   await save();
-  return { turn, audioBase64: Buffer.from(wav).toString("base64"), state };
+  return { turn, audioBase64, ttsNote, state };
+}
+
+async function removeDocument(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const id = String(body.id ?? "");
+  const before = state.documents.length;
+  state.documents = state.documents.filter((doc) => doc.id !== id);
+  state.chunks = state.chunks.filter((chunk) => chunk.documentId !== id);
+  if (state.documents.length === before) throw new Error("Document not found.");
+  await save();
+  return statePayload();
+}
+
+async function imageStream(body: Record<string, unknown>, res: ServerResponse): Promise<void> {
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson",
+    "cache-control": "no-cache",
+    "x-accel-buffering": "no"
+  });
+  const send = (obj: Record<string, unknown>): void => {
+    res.write(`${JSON.stringify(obj)}\n`);
+  };
+  const unsubscribe = qvac.onStatus((status) => send({ type: "status", status }));
+  try {
+    const prompt = String(body.prompt ?? "").trim();
+    if (!prompt) throw new Error("Prompt is empty.");
+    const width = Number(body.width ?? 512);
+    const height = Number(body.height ?? 512);
+    const steps = Number(body.steps ?? 20);
+    const route = body.route as RouteRequest;
+
+    const result = await qvac.generateImage(
+      prompt,
+      width,
+      height,
+      steps,
+      route,
+      (tick) => send({ type: "progress", step: tick.step, totalSteps: tick.totalSteps, elapsedMs: tick.elapsedMs })
+    );
+
+    const images: Array<{ id: string; prompt: string; path: string; createdAt: string; dataBase64: string }> = [];
+    for (let i = 0; i < result.value.length; i += 1) {
+      const bytes = result.value[i] ?? new Uint8Array();
+      const path = await store.writeBinary("gallery", `${Date.now()}-${i}.png`, bytes);
+      const item = { id: uid(), prompt, path, createdAt: nowIso() };
+      state.gallery.unshift(item);
+      images.push({ ...item, dataBase64: Buffer.from(bytes).toString("base64") });
+    }
+    await save();
+    send({ type: "done", images, state });
+  } catch (error) {
+    send({ type: "error", error: errorToMessage(error) });
+  } finally {
+    unsubscribe();
+    res.end();
+  }
 }
 
 async function imageGenerate(body: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -261,10 +413,30 @@ async function providerTest(body: Record<string, unknown>): Promise<Record<strin
   return { provider, state };
 }
 
+async function autoSetup(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const requested = (body.capabilities as Capability[] | undefined) ?? ["llm", "embeddings", "transcription"];
+  const defaults = structuredClone(defaultConfig);
+  for (const capability of requested) {
+    state.config.models[capability] = { ...defaults.models[capability], enabled: true };
+  }
+  await qvac.unloadAll();
+  qvac.setConfig(state.config);
+  await save();
+  return statePayload();
+}
+
+async function resetConfig(): Promise<Record<string, unknown>> {
+  state.config = structuredClone(defaultConfig);
+  await qvac.unloadAll();
+  qvac.setConfig(state.config);
+  await save();
+  return statePayload();
+}
+
 async function answerWithRag(question: string, route: RouteRequest): Promise<string> {
   if (state.chunks.length === 0) return "No local RAG chunks are available. Upload and ingest a txt/md document first.";
   const [queryEmbedding] = await qvac.embedTexts([question], { capability: "embeddings", mode: route.mode, providerId: route.providerId });
-  const chunks = retrieveTopChunks(state.chunks, queryEmbedding ?? [], 5);
+  const chunks = retrieveTopChunks(state.chunks, queryEmbedding ?? [], 3);
   const prompt = buildRagPrompt(question, chunks);
   const response = await qvac.complete({ prompt }, route);
   return `${response.value}\n\nSources:\n${formatSources(chunks)}`;

@@ -2,13 +2,13 @@ import type { AppConfig, Capability, ModelConfig } from "./types.js";
 
 const modelDefaults: Record<Capability, ModelConfig> = {
   llm: {
-    enabled: false,
+    enabled: true,
     modelSrc: "QWEN3_600M_INST_Q4",
     modelType: "llamacpp-completion",
-    modelConfig: { ctx_size: 2048, gpu_layers: 99, predict: 256, reasoning_budget: 0 }
+    modelConfig: { ctx_size: 4096, gpu_layers: 99, predict: 320, reasoning_budget: 0 }
   },
   embeddings: {
-    enabled: false,
+    enabled: true,
     modelSrc: "EMBEDDINGGEMMA_300M_Q4_0",
     modelType: "llamacpp-embedding",
     modelConfig: {}
@@ -23,7 +23,7 @@ const modelDefaults: Record<Capability, ModelConfig> = {
     }
   },
   transcription: {
-    enabled: false,
+    enabled: true,
     modelSrc: "WHISPER_EN_TINY_Q8_0",
     modelType: "whispercpp-transcription",
     modelConfig: {
@@ -34,23 +34,28 @@ const modelDefaults: Record<Capability, ModelConfig> = {
   },
   translation: {
     enabled: false,
-    modelSrc: "MARIAN_EN_HI_INDIC_200M_Q4_0",
+    modelSrc: "BERGAMOT_EN_VI",
     modelType: "nmtcpp-translation",
-    modelConfig: { engine: "IndicTrans2" }
+    modelConfig: {
+      engine: "Bergamot",
+      from: "en",
+      to: "vi"
+    }
   },
   tts: {
     enabled: false,
-    modelSrc: "TTS_LANGUAGE_MODEL_EN_CHATTERBOX_FP32",
+    modelSrc: "TTS_SUPERTONIC2_OFFICIAL_VOCODER_SUPERTONE_FP32",
     modelType: "onnx-tts",
     modelConfig: {
-      ttsEngine: "chatterbox",
+      ttsEngine: "supertonic",
       language: "en",
-      ttsTokenizerSrc: "TTS_TOKENIZER_EN_CHATTERBOX",
-      ttsSpeechEncoderSrc: "TTS_SPEECH_ENCODER_EN_CHATTERBOX_FP32",
-      ttsEmbedTokensSrc: "TTS_EMBED_TOKENS_EN_CHATTERBOX_FP32",
-      ttsConditionalDecoderSrc: "TTS_CONDITIONAL_DECODER_EN_CHATTERBOX_FP32",
-      ttsLanguageModelSrc: "TTS_LANGUAGE_MODEL_EN_CHATTERBOX_FP32",
-      referenceAudioSrc: ""
+      ttsTextEncoderSrc: "TTS_SUPERTONIC2_OFFICIAL_TEXT_ENCODER_SUPERTONE_FP32",
+      ttsDurationPredictorSrc: "TTS_SUPERTONIC2_OFFICIAL_DURATION_PREDICTOR_SUPERTONE_FP32",
+      ttsVectorEstimatorSrc: "TTS_SUPERTONIC2_OFFICIAL_VECTOR_ESTIMATOR_SUPERTONE_FP32",
+      ttsVocoderSrc: "TTS_SUPERTONIC2_OFFICIAL_VOCODER_SUPERTONE_FP32",
+      ttsUnicodeIndexerSrc: "TTS_SUPERTONIC2_OFFICIAL_UNICODE_INDEXER_SUPERTONE_FP32",
+      ttsTtsConfigSrc: "TTS_SUPERTONIC2_OFFICIAL_TTS_CONFIG_SUPERTONE",
+      ttsVoiceStyleSrc: "TTS_SUPERTONIC2_OFFICIAL_VOICE_STYLE_SUPERTONE"
     }
   },
   image: {

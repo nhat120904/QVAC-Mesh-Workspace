@@ -9,7 +9,7 @@ export type RetrievedChunk = RagChunk & {
   score: number;
 };
 
-export function chunkText(text: string, maxChars = 1200, overlap = 180): string[] {
+export function chunkText(text: string, maxChars = 600, overlap = 80): string[] {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!normalized) return [];
 
@@ -56,13 +56,20 @@ export function retrieveTopChunks(chunks: RagChunk[], queryEmbedding: number[], 
     .slice(0, topK);
 }
 
-export function buildRagPrompt(question: string, chunks: RetrievedChunk[]): string {
-  const context = chunks
-    .map((chunk, index) => {
-      return `[${index + 1}] ${chunk.documentName} chunk ${chunk.index + 1}\n${chunk.text}`;
-    })
-    .join("\n\n");
-
+export function buildRagPrompt(question: string, chunks: RetrievedChunk[], maxContextChars = 2400): string {
+  const blocks: string[] = [];
+  let used = 0;
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index];
+    if (!chunk) continue;
+    const header = `[${index + 1}] ${chunk.documentName} chunk ${chunk.index + 1}\n`;
+    const remaining = maxContextChars - used - header.length;
+    if (remaining <= 80) break;
+    const body = chunk.text.length > remaining ? `${chunk.text.slice(0, remaining)}…` : chunk.text;
+    blocks.push(`${header}${body}`);
+    used += header.length + body.length + 2;
+  }
+  const context = blocks.join("\n\n");
   return [
     "Answer the question using only the provided sources.",
     "Cite sources inline as [1], [2], etc. If the sources do not contain the answer, say what is missing.",

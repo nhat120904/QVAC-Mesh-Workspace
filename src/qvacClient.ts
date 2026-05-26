@@ -5,6 +5,7 @@ import type {
   AppConfig,
   Capability,
   CompletionInput,
+  ModelConfig,
   ModelLoadStatus,
   ProviderConfig,
   RouteMode,
@@ -28,9 +29,11 @@ export class SetupRequiredError extends Error {
 export class QvacWorkspace {
   private config: AppConfig;
   private readonly loaded = new Map<string, string>();
+  private readonly loading = new Map<string, Promise<string>>();
   private readonly statuses = new Map<string, ModelLoadStatus>();
   private providerPublicKey: string | undefined;
-  private listener: ProgressListener | undefined;
+  private readonly listeners = new Set<ProgressListener>();
+  private readonly runLocks = new Map<string, Promise<unknown>>();
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -40,8 +43,9 @@ export class QvacWorkspace {
     this.config = config;
   }
 
-  onStatus(listener: ProgressListener): void {
-    this.listener = listener;
+  onStatus(listener: ProgressListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   getStatuses(): ModelLoadStatus[] {
@@ -51,6 +55,7 @@ export class QvacWorkspace {
   async unloadAll(): Promise<void> {
     const ids = [...new Set(this.loaded.values())];
     this.loaded.clear();
+    this.loading.clear();
     await Promise.allSettled(ids.map((modelId) => qvac.unloadModel({ modelId })));
   }
 
@@ -146,18 +151,38 @@ export class QvacWorkspace {
     height: number,
     steps: number,
     routeRequest: RouteRequest,
-    onProgress?: (message: string) => void
+    onProgress?: (tick: { step: number; totalSteps: number; elapsedMs: number }) => void
   ): Promise<RoutedResult<Uint8Array[]>> {
     return this.withRoute(routeRequest, async (route) => {
       const modelId = await this.load("image", route);
-      const result = qvac.diffusion({ modelId, prompt, width, height, steps });
-      void (async () => {
-        for await (const tick of result.progressStream) {
-          onProgress?.(`Diffusion step ${tick.step}/${tick.totalSteps}`);
+      return await this.withRunLock(`image:${modelId}`, async () => {
+        const result = qvac.diffusion({ modelId, prompt, width, height, steps });
+        const progressTask = (async () => {
+          for await (const tick of result.progressStream) onProgress?.(tick);
+        })().catch(() => undefined);
+        try {
+          const value = await result.outputs;
+          const stats = await result.stats;
+          await progressTask;
+          return { value, stats };
+        } catch (error) {
+          await progressTask;
+          throw error;
         }
-      })();
-      return { value: await result.outputs, stats: await result.stats };
+      });
     });
+  }
+
+  private async withRunLock<T>(key: string, run: () => Promise<T>): Promise<T> {
+    const previous = this.runLocks.get(key) as Promise<T> | undefined;
+    if (previous) await previous.catch(() => undefined);
+    const promise = run();
+    this.runLocks.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      if (this.runLocks.get(key) === promise) this.runLocks.delete(key);
+    }
   }
 
   async startProvider(): Promise<string> {
@@ -230,34 +255,67 @@ export class QvacWorkspace {
       capability,
       src: model.modelSrc,
       type: model.modelType,
-      config: model.modelConfig,
       provider: route.provider?.publicKey
     });
-    const loaded = this.loaded.get(key);
-    if (loaded) return loaded;
+    const cached = this.loaded.get(key);
+    if (cached) return cached;
+    const inFlight = this.loading.get(key);
+    if (inFlight) return inFlight;
 
-    this.setStatus(key, "loading", `Loading ${capability} model ${model.modelSrc}`);
+    const promise = this.performLoad(capability, key, model, route);
+    this.loading.set(key, promise);
     try {
-      const options: LoadModelOptions = {
-        modelSrc: this.resolveSource(model.modelSrc),
-        modelType: model.modelType as LoadModelOptions["modelType"],
-        modelConfig: this.resolveObjectSources(model.modelConfig),
-        delegate: route.provider
-          ? {
-              providerPublicKey: route.provider.publicKey,
-              timeout: 60_000,
-              fallbackToLocal: false
-            }
-          : undefined,
-        onProgress: (progress: ModelProgressUpdate) => {
-          this.setStatus(key, "loading", formatProgress(capability, progress));
-        }
-      } as LoadModelOptions;
-      const modelId = await qvac.loadModel(options);
+      const modelId = await promise;
       this.loaded.set(key, modelId);
+      return modelId;
+    } finally {
+      this.loading.delete(key);
+    }
+  }
+
+  private async performLoad(
+    capability: Capability,
+    key: string,
+    model: ModelConfig,
+    route: ResolvedRoute
+  ): Promise<string> {
+    this.setStatus(key, "loading", `Loading ${capability} model ${model.modelSrc}`);
+    const options: LoadModelOptions = {
+      modelSrc: this.resolveSource(model.modelSrc),
+      modelType: model.modelType as LoadModelOptions["modelType"],
+      modelConfig: this.resolveObjectSources(model.modelConfig),
+      delegate: route.provider
+        ? {
+            providerPublicKey: route.provider.publicKey,
+            timeout: 60_000,
+            fallbackToLocal: false
+          }
+        : undefined,
+      onProgress: (progress: ModelProgressUpdate) => {
+        this.setStatus(key, "loading", formatProgress(capability, progress));
+      }
+    } as LoadModelOptions;
+    try {
+      const modelId = await qvac.loadModel(options);
       this.setStatus(key, "loaded", `${capability} model loaded as ${modelId}`);
       return modelId;
     } catch (error) {
+      const stuckId = extractRegisteredModelId(error);
+      if (stuckId) {
+        try {
+          await qvac.unloadModel({ modelId: stuckId });
+          const retried = await qvac.loadModel(options);
+          this.setStatus(key, "loaded", `${capability} model loaded as ${retried} (after recover)`);
+          return retried;
+        } catch (retryError) {
+          if (extractRegisteredModelId(retryError)) {
+            this.setStatus(key, "loaded", `${capability} model reused: ${stuckId}`);
+            return stuckId;
+          }
+          this.setStatus(key, "error", errorToMessage(retryError));
+          throw retryError;
+        }
+      }
       this.setStatus(key, "error", errorToMessage(error));
       throw error;
     }
@@ -298,7 +356,7 @@ export class QvacWorkspace {
   private setStatus(key: string, state: ModelLoadStatus["state"], message: string): void {
     const status = { key, state, message };
     this.statuses.set(key, status);
-    this.listener?.(status);
+    for (const listener of this.listeners) listener(status);
   }
 }
 
@@ -315,4 +373,10 @@ function formatProgress(capability: Capability, progress: ModelProgressUpdate): 
 export function errorToMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+export function extractRegisteredModelId(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/Model with ID "([^"]+)" is already registered/);
+  return match?.[1];
 }

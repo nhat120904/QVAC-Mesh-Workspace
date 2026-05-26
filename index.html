@@ -4,29 +4,77 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QVAC Mesh Workspace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
     <script defer src="./dist/src/app.js"></script>
   </head>
   <body>
     <div id="titlebar">
       <pear-ctrl></pear-ctrl>
+      <span class="brand-dot"></span>
       <strong>QVAC Mesh Workspace</strong>
+      <span class="titlebar-status" id="titlebar-status">connecting...</span>
     </div>
     <main>
       <aside>
-        <h1>QVAC Mesh Workspace</h1>
+        <div class="sidebar-brand">
+          <div class="brand-mark">Q</div>
+          <div>
+            <h1>QVAC Mesh</h1>
+            <p>Local-first AI workspace</p>
+          </div>
+        </div>
         <nav aria-label="Workspace sections">
-          <button class="tab active" data-view="dashboard">Dashboard</button>
-          <button class="tab" data-view="chat">Chat</button>
-          <button class="tab" data-view="documents">Documents/RAG</button>
-          <button class="tab" data-view="multimodal">Multimodal</button>
-          <button class="tab" data-view="audio">Audio</button>
-          <button class="tab" data-view="translation">Translation</button>
-          <button class="tab" data-view="voice">Voice</button>
-          <button class="tab" data-view="images">Image generation</button>
-          <button class="tab" data-view="mesh">Mesh/P2P</button>
-          <button class="tab" data-view="settings">Model config</button>
+          <button class="tab active" data-view="dashboard">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="tab" data-view="chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H7l-3 3z"/></svg>
+            <span>Chat</span>
+          </button>
+          <button class="tab" data-view="documents">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6zM14 2v6h6"/></svg>
+            <span>Documents / RAG</span>
+          </button>
+          <button class="tab" data-view="multimodal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6"/></svg>
+            <span>Multimodal</span>
+          </button>
+          <button class="tab" data-view="audio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7v10M4 10v4M16 7v10M20 10v4"/></svg>
+            <span>Audio</span>
+          </button>
+          <button class="tab" data-view="translation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M9 4v2c0 4-3 8-7 9M4 10c3 0 6 2 7 5M14 20l4-10 4 10M15 17h6"/></svg>
+            <span>Translation</span>
+          </button>
+          <button class="tab" data-view="voice">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span>Voice</span>
+          </button>
+          <button class="tab" data-view="images">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM21 17l-6-6-9 8"/></svg>
+            <span>Image generation</span>
+          </button>
+          <button class="tab" data-view="mesh">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6L12 12L18 6M6 18L12 12L18 18M12 12L6 18"/></svg>
+            <span>Mesh / P2P</span>
+          </button>
+          <button class="tab" data-view="settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+            <span>Model config</span>
+          </button>
         </nav>
+        <div class="sidebar-footer">
+          <div class="status-line">
+            <span class="status-dot" id="api-dot"></span>
+            <span id="api-label">API offline</span>
+          </div>
+          <p class="hint">All inference runs locally or through QVAC P2P providers. No cloud APIs.</p>
+        </div>
       </aside>
 
       <section id="workspace">
@@ -35,17 +83,41 @@
             <div>
               <p class="eyebrow">Local-first status</p>
               <h2>Dashboard</h2>
+              <p class="subtitle">Your private QVAC workspace runs entirely on this device.</p>
             </div>
-            <button id="refresh-dashboard">Refresh</button>
+            <div class="inline-controls">
+              <button id="refresh-dashboard" class="ghost">Refresh</button>
+              <button id="quick-setup" class="primary">⚡ Quick setup (small models)</button>
+            </div>
           </header>
+
+          <div id="onboarding-banner" class="onboarding hidden">
+            <div class="onboarding-content">
+              <h3>👋 Welcome — no models configured yet</h3>
+              <p>Click <strong>Quick setup</strong> to enable LLM (Qwen3 600M), Embeddings (EmbeddingGemma 300M), and Whisper Tiny. Models auto-download from the QVAC registry on first use.</p>
+            </div>
+            <button id="quick-setup-banner" class="primary">⚡ Enable defaults</button>
+          </div>
+
           <div class="grid three" id="status-cards"></div>
+
+          <div class="panel" id="model-progress-panel" hidden>
+            <div class="panel-header">
+              <h3>Model activity</h3>
+              <button id="clear-progress" class="ghost small">Clear</button>
+            </div>
+            <div id="model-progress-list"></div>
+          </div>
+
           <div class="panel">
-            <h3>Quick actions</h3>
+            <div class="panel-header">
+              <h3>Quick actions</h3>
+            </div>
             <div class="actions">
-              <button data-jump="chat">Run completion</button>
-              <button data-jump="documents">Ingest document</button>
-              <button data-jump="mesh">Start provider</button>
-              <button data-jump="settings">Configure models</button>
+              <button data-jump="chat">💬 Run completion</button>
+              <button data-jump="documents">📄 Ingest document</button>
+              <button data-jump="mesh">🛰 Start provider</button>
+              <button data-jump="settings">⚙ Configure models</button>
             </div>
           </div>
         </section>
@@ -55,22 +127,33 @@
             <div>
               <p class="eyebrow">Streaming completion</p>
               <h2>Chat</h2>
+              <p class="subtitle">Tokens stream live from the QVAC SDK as the model generates.</p>
             </div>
             <div class="inline-controls">
-              <select id="chat-mode">
-                <option value="normal">Normal</option>
-                <option value="rag">RAG</option>
-                <option value="multimodal">Multimodal</option>
-              </select>
-              <select id="chat-route"></select>
-              <select id="chat-provider"></select>
+              <label class="field-inline">Mode
+                <select id="chat-mode">
+                  <option value="normal">Normal</option>
+                  <option value="rag">RAG</option>
+                  <option value="multimodal">Multimodal</option>
+                </select>
+              </label>
+              <label class="field-inline">Route<select id="chat-route"></select></label>
+              <label class="field-inline">Provider<select id="chat-provider"></select></label>
+              <button type="button" id="chat-new-session" class="ghost" title="Clear chat history">+ New session</button>
             </div>
           </header>
-          <div id="chat-log" class="log"></div>
+          <div id="chat-log" class="log chat-log"></div>
           <form id="chat-form" class="composer">
-            <input id="chat-image" type="file" accept="image/*" multiple />
-            <textarea id="chat-input" rows="3" placeholder="Ask QVAC locally or through a provider"></textarea>
-            <button type="submit">Send</button>
+            <label class="file-button" title="Attach image for multimodal mode">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.5l-9 9a5 5 0 1 1-7-7l9-9a3.5 3.5 0 1 1 5 5L10 19"/></svg>
+              <input id="chat-image" type="file" accept="image/*" multiple hidden />
+              <span id="chat-image-label">Attach</span>
+            </label>
+            <textarea id="chat-input" rows="2" placeholder="Ask QVAC anything — runs on your device"></textarea>
+            <button type="submit" class="primary send">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l18-9-4 9 4 9z"/></svg>
+              Send
+            </button>
           </form>
         </section>
 
@@ -78,22 +161,27 @@
           <header class="section-header">
             <div>
               <p class="eyebrow">Embeddings + local vector store</p>
-              <h2>Documents/RAG</h2>
+              <h2>Documents / RAG</h2>
+              <p class="subtitle">Chunks, embeddings, and retrieval all happen on this device.</p>
             </div>
-            <select id="rag-route"></select>
+            <label class="field-inline">Route<select id="rag-route"></select></label>
           </header>
           <div class="grid two">
             <form id="ingest-form" class="panel">
-              <h3>Upload txt/md</h3>
+              <h3>Ingest a document</h3>
               <input id="doc-file" type="file" accept=".txt,.md,text/plain,text/markdown" required />
-              <button type="submit">Ingest with QVAC embeddings</button>
-              <p class="hint">Chunks and vectors are stored locally in app storage.</p>
+              <button type="submit" class="primary">Ingest with QVAC embeddings</button>
+              <p class="hint">.txt or .md — chunked, embedded, and stored locally.</p>
             </form>
             <form id="rag-form" class="panel">
-              <h3>Ask documents</h3>
+              <h3>Ask your documents</h3>
               <textarea id="rag-question" rows="5" placeholder="Ask a question about ingested documents"></textarea>
-              <button type="submit">Answer with sources</button>
+              <button type="submit" class="primary">Answer with sources</button>
             </form>
+          </div>
+          <div class="panel-header" style="margin-top: 18px;">
+            <h3 style="margin: 0;">Ingested documents</h3>
+            <button id="clear-documents" class="ghost small">Clear all</button>
           </div>
           <div id="documents-list" class="list"></div>
           <div id="rag-answer" class="result"></div>
@@ -104,16 +192,17 @@
             <div>
               <p class="eyebrow">Image chat</p>
               <h2>Multimodal</h2>
+              <p class="subtitle">Ask about an image or compare two with a vision-capable LLM.</p>
             </div>
             <div class="inline-controls">
-              <select id="multimodal-route"></select>
-              <select id="multimodal-provider"></select>
+              <label class="field-inline">Route<select id="multimodal-route"></select></label>
+              <label class="field-inline">Provider<select id="multimodal-provider"></select></label>
             </div>
           </header>
           <form id="multimodal-form" class="panel">
             <input id="multimodal-images" type="file" accept="image/*" multiple required />
             <textarea id="multimodal-prompt" rows="4" placeholder="Ask about one image or compare two images"></textarea>
-            <button type="submit">Send multimodal prompt</button>
+            <button type="submit" class="primary">Send multimodal prompt</button>
           </form>
           <div id="multimodal-result" class="result"></div>
         </section>
@@ -123,17 +212,18 @@
             <div>
               <p class="eyebrow">Transcription workflow</p>
               <h2>Audio</h2>
+              <p class="subtitle">Whisper runs locally — WAV is the most reliable input.</p>
             </div>
-            <select id="audio-route"></select>
+            <label class="field-inline">Route<select id="audio-route"></select></label>
           </header>
           <form id="audio-form" class="panel">
             <input id="audio-file" type="file" accept="audio/*" required />
-            <button type="submit">Transcribe</button>
+            <button type="submit" class="primary">Transcribe</button>
           </form>
           <div class="actions">
-            <button id="summarize-transcript">Summarize</button>
-            <button id="transcript-actions">Action items</button>
-            <button id="transcript-to-rag">Add transcript to RAG</button>
+            <button id="summarize-transcript">📝 Summarize</button>
+            <button id="transcript-actions">✅ Action items</button>
+            <button id="transcript-to-rag">📚 Add transcript to RAG</button>
           </div>
           <div id="audio-result" class="result"></div>
         </section>
@@ -143,13 +233,14 @@
             <div>
               <p class="eyebrow">QVAC NMT or local LLM fallback</p>
               <h2>Translation</h2>
+              <p class="subtitle">Uses a configured NMT model or falls back to your local LLM.</p>
             </div>
-            <select id="translation-route"></select>
+            <label class="field-inline">Route<select id="translation-route"></select></label>
           </header>
           <form id="translation-form" class="panel">
             <div class="inline-controls">
-              <input id="translation-from" value="en" aria-label="Source language" />
-              <input id="translation-to" value="it" aria-label="Target language" />
+              <label class="field-inline">From<input id="translation-from" value="en" /></label>
+              <label class="field-inline">To<input id="translation-to" value="vi" /></label>
             </div>
             <div class="actions">
               <button type="button" id="translate-last-chat">Use last chat answer</button>
@@ -157,7 +248,7 @@
               <button type="button" id="translate-last-document">Use latest document</button>
             </div>
             <textarea id="translation-input" rows="6" placeholder="Text to translate"></textarea>
-            <button type="submit">Translate</button>
+            <button type="submit" class="primary">Translate</button>
           </form>
           <div id="translation-result" class="result"></div>
         </section>
@@ -165,17 +256,18 @@
         <section id="voice" class="view">
           <header class="section-header">
             <div>
-              <p class="eyebrow">STT -> LLM -> TTS</p>
+              <p class="eyebrow">STT → LLM → TTS</p>
               <h2>Voice assistant</h2>
+              <p class="subtitle">Push-to-talk loop entirely on-device.</p>
             </div>
-            <select id="voice-route"></select>
+            <label class="field-inline">Route<select id="voice-route"></select></label>
           </header>
           <div class="panel">
             <div class="actions">
-              <button id="voice-record">Start recording</button>
-              <button id="voice-stop" disabled>Stop and run assistant</button>
+              <button id="voice-record" class="primary">🎙 Start recording</button>
+              <button id="voice-stop" disabled>⏹ Stop and run assistant</button>
             </div>
-            <p class="hint">Recording uses your local microphone and stores turns locally.</p>
+            <p class="hint">Recording uses your local microphone. WAV is most reliable; webm works if a compatible Whisper build is loaded.</p>
           </div>
           <div id="voice-log" class="log"></div>
         </section>
@@ -185,17 +277,23 @@
             <div>
               <p class="eyebrow">QVAC diffusion</p>
               <h2>Image generation</h2>
+              <p class="subtitle">Stable Diffusion via QVAC, with a local gallery.</p>
             </div>
-            <select id="image-route"></select>
+            <label class="field-inline">Route<select id="image-route"></select></label>
           </header>
           <form id="image-form" class="panel">
-            <textarea id="image-prompt" rows="4" placeholder="Prompt for image generation"></textarea>
+            <textarea id="image-prompt" rows="4" placeholder="A serene mountain lake at sunrise, ultra detailed, oil painting"></textarea>
             <div class="inline-controls">
-              <input id="image-width" type="number" min="64" step="64" value="512" />
-              <input id="image-height" type="number" min="64" step="64" value="512" />
-              <input id="image-steps" type="number" min="1" max="80" value="20" />
+              <label class="field-inline">Width<input id="image-width" type="number" min="64" step="64" value="512" /></label>
+              <label class="field-inline">Height<input id="image-height" type="number" min="64" step="64" value="512" /></label>
+              <label class="field-inline">Steps<input id="image-steps" type="number" min="1" max="80" value="20" /></label>
             </div>
-            <button type="submit">Generate</button>
+            <button id="image-generate" type="submit" class="primary">Generate</button>
+            <div id="image-progress" class="progress-bar" hidden>
+              <div class="progress-bar-track"><div class="progress-bar-fill" id="image-progress-fill"></div></div>
+              <span class="progress-bar-label" id="image-progress-label">Preparing…</span>
+            </div>
+            <p class="hint">On Apple Silicon, diffusion runs through Metal (GPU). First run downloads ~1 GB.</p>
           </form>
           <div id="gallery" class="gallery"></div>
         </section>
@@ -204,15 +302,16 @@
           <header class="section-header">
             <div>
               <p class="eyebrow">Delegated inference</p>
-              <h2>Mesh/P2P</h2>
+              <h2>Mesh / P2P</h2>
+              <p class="subtitle">Share or borrow compute via QVAC's encrypted P2P transport.</p>
             </div>
           </header>
           <div class="grid two">
             <div class="panel">
               <h3>This device as provider</h3>
               <div class="actions">
-                <button id="start-provider">Start provider</button>
-                <button id="stop-provider">Stop provider</button>
+                <button id="start-provider" class="primary">Start provider</button>
+                <button id="stop-provider" class="ghost">Stop provider</button>
               </div>
               <pre id="provider-public-key">Provider not running.</pre>
             </div>
@@ -221,7 +320,7 @@
               <input id="provider-name" placeholder="Device B LLM provider" />
               <input id="provider-key" placeholder="Provider public key" required />
               <input id="provider-capabilities" value="llm,embeddings" />
-              <button type="submit">Save provider</button>
+              <button type="submit" class="primary">Save provider</button>
             </form>
           </div>
           <div id="providers-list" class="list"></div>
@@ -232,8 +331,12 @@
             <div>
               <p class="eyebrow">Model setup</p>
               <h2>Model config</h2>
+              <p class="subtitle">Each capability resolves QVAC registry constants or local paths.</p>
             </div>
-            <button id="save-config">Save config</button>
+            <div class="inline-controls">
+              <button id="reset-config" class="ghost">Reset to defaults</button>
+              <button id="save-config" class="primary">Save config</button>
+            </div>
           </header>
           <div id="config-grid" class="grid two"></div>
         </section>

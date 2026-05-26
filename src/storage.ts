@@ -120,13 +120,35 @@ function mergeState(parsed: Partial<AppState>): AppState {
 function mergeConfig(config?: Partial<AppConfig>): AppConfig {
   const defaults = structuredClone(defaultConfig);
   if (!config) return defaults;
+  const incoming = (config.models ?? {}) as Partial<AppConfig["models"]>;
+  const models = { ...defaults.models } as AppConfig["models"];
+  for (const capability of Object.keys(defaults.models) as Array<keyof AppConfig["models"]>) {
+    const stored = incoming[capability];
+    if (!stored) continue;
+    if (isBrokenStoredModel(capability, stored)) {
+      models[capability] = { ...defaults.models[capability], enabled: stored.enabled ?? defaults.models[capability].enabled };
+    } else {
+      models[capability] = stored;
+    }
+  }
   return {
     ...defaults,
     ...config,
-    models: {
-      ...defaults.models,
-      ...(config.models ?? {})
-    },
+    models,
     providers: config.providers ?? []
   };
+}
+
+function isBrokenStoredModel(capability: keyof AppConfig["models"], stored: AppConfig["models"][keyof AppConfig["models"]]): boolean {
+  const cfg = stored.modelConfig ?? {};
+  if (capability === "translation") {
+    const engine = (cfg as { engine?: unknown }).engine;
+    if (engine !== undefined && engine !== "Bergamot" && engine !== "IndicTrans") return true;
+  }
+  if (capability === "tts") {
+    const ttsEngine = (cfg as { ttsEngine?: unknown }).ttsEngine;
+    const referenceAudio = (cfg as { referenceAudioSrc?: unknown }).referenceAudioSrc;
+    if (ttsEngine === "chatterbox" && (typeof referenceAudio !== "string" || referenceAudio.trim() === "")) return true;
+  }
+  return false;
 }
