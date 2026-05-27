@@ -506,7 +506,11 @@ form.panel > * + * {
 .panel + .list,
 .panel + .log,
 .panel + .result,
-.list + .result {
+.list + .result,
+.grid + .panel,
+.grid + .list,
+.grid + .log,
+.grid + .result {
   margin-top: 16px;
 }
 
