@@ -166,6 +166,8 @@ async function route(pathname: string, body: unknown): Promise<Record<string, un
       return await voiceTurn(asRecord(body));
     case "/image/generate":
       return await imageGenerate(asRecord(body));
+    case "/image/enhance-prompt":
+      return await enhanceImagePrompt(asRecord(body));
     case "/provider/start":
       return { publicKey: await qvac.startProvider(), ...statePayload() };
     case "/provider/stop":
@@ -378,6 +380,23 @@ async function imageGenerate(body: Record<string, unknown>): Promise<Record<stri
   }
   await save();
   return { images, state };
+}
+
+async function enhanceImagePrompt(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const prompt = String(body.prompt ?? "").trim();
+  if (!prompt) throw new Error("Prompt is empty.");
+  const route = body.route as RouteRequest;
+  const instruction = [
+    "You rewrite short user prompts into rich, vivid prompts for a text-to-image diffusion model.",
+    "Keep the original subject and intent. Add concrete visual detail: subject specifics, composition, lighting, color palette, style, medium, mood, and camera/lens cues when fitting.",
+    "Return ONLY the rewritten prompt as a single paragraph of comma-separated phrases. No preface, no quotes, no explanation.",
+    "",
+    `Original prompt: ${prompt}`,
+    "Rewritten prompt:"
+  ].join("\n");
+  const result = await qvac.complete({ prompt: instruction }, { ...(route ?? {}), capability: "llm" });
+  const enhanced = String(result.value ?? "").trim().replace(/^["']|["']$/g, "");
+  return { prompt: enhanced || prompt, route: result.route, provider: result.provider };
 }
 
 async function providerAdd(body: Record<string, unknown>): Promise<Record<string, unknown>> {

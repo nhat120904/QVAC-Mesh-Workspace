@@ -455,6 +455,31 @@ function bindVoice(): void {
 function bindImages(): void {
   const form = input("#image-form", HTMLFormElement);
   const button = input("#image-generate", HTMLButtonElement);
+  const enhanceButton = input("#image-enhance", HTMLButtonElement);
+  const promptField = input("#image-prompt", HTMLTextAreaElement);
+  enhanceButton.addEventListener("click", async () => {
+    const prompt = promptField.value.trim();
+    if (!prompt) {
+      toast("Enter a prompt to enhance.");
+      return;
+    }
+    enhanceButton.disabled = true;
+    const previousLabel = enhanceButton.textContent;
+    enhanceButton.textContent = "Enhancing…";
+    try {
+      const response = await api("/image/enhance-prompt", {
+        prompt,
+        route: routeFromSelect("image-enhance-route", "llm", "image-enhance-provider")
+      });
+      const enhanced = String(response.prompt ?? "").trim();
+      if (enhanced) promptField.value = enhanced;
+    } catch (error) {
+      toast(errorMessage(error));
+    } finally {
+      enhanceButton.disabled = false;
+      enhanceButton.textContent = previousLabel;
+    }
+  });
   const progress = qs<HTMLElement>("#image-progress");
   const fill = qs<HTMLElement>("#image-progress-fill");
   const label = qs<HTMLElement>("#image-progress-label");
@@ -735,7 +760,7 @@ function renderConfig(): void {
 }
 
 function renderRouteSelectors(): void {
-  for (const id of ["chat-route", "rag-route", "multimodal-route", "audio-route", "translation-route", "voice-route", "image-route"]) {
+  for (const id of ["chat-route", "rag-route", "multimodal-route", "audio-route", "translation-route", "voice-route", "image-route", "image-enhance-route"]) {
     const node = document.querySelector<HTMLSelectElement>(`#${id}`);
     if (!node) continue;
     const current = node.value || "local";
@@ -743,7 +768,7 @@ function renderRouteSelectors(): void {
       .map((mode) => `<option value="${mode}" ${mode === current ? "selected" : ""}>${mode}</option>`)
       .join("");
   }
-  for (const id of ["chat-provider", "multimodal-provider", "rag-provider", "audio-provider", "translation-provider", "voice-provider", "image-provider"]) {
+  for (const id of ["chat-provider", "multimodal-provider", "rag-provider", "audio-provider", "translation-provider", "voice-provider", "image-provider", "image-enhance-provider"]) {
     const node = document.querySelector<HTMLSelectElement>(`#${id}`);
     if (!node) continue;
     node.innerHTML = `<option value="">First capable</option>${state.config.providers

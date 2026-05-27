@@ -60,7 +60,7 @@ const modelDefaults: Record<Capability, ModelConfig> = {
   },
   image: {
     enabled: false,
-    modelSrc: "SD_V2_1_1B_Q4_0",
+    modelSrc: "SDXL_BASE_1_0_3B_Q4_0",
     modelType: "sdcpp-generation",
     modelConfig: { device: "gpu" }
   }

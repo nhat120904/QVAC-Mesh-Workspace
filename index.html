@@ -299,6 +299,11 @@
           <form id="image-form" class="panel">
             <textarea id="image-prompt" rows="4" placeholder="A serene mountain lake at sunrise, ultra detailed, oil painting"></textarea>
             <div class="inline-controls">
+              <label class="field-inline">Enhance route<select id="image-enhance-route"></select></label>
+              <label class="field-inline">Enhance provider<select id="image-enhance-provider"></select></label>
+              <button id="image-enhance" type="button" class="ghost">Enhance prompt</button>
+            </div>
+            <div class="inline-controls">
               <label class="field-inline">Width<input id="image-width" type="number" min="64" step="64" value="512" /></label>
               <label class="field-inline">Height<input id="image-height" type="number" min="64" step="64" value="512" /></label>
               <label class="field-inline">Steps<input id="image-steps" type="number" min="1" max="80" value="20" /></label>
