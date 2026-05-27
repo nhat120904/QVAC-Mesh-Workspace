@@ -161,7 +161,7 @@ async function route(pathname: string, body: unknown): Promise<Record<string, un
     case "/audio/transcript-prompt":
       return await transcriptPrompt(asRecord(body));
     case "/audio/transcript-to-rag":
-      return await latestTranscriptToRag();
+      return await latestTranscriptToRag(asRecord(body));
     case "/translate":
       return await translateText(asRecord(body));
     case "/voice/turn":
@@ -256,10 +256,11 @@ async function transcriptPrompt(body: Record<string, unknown>): Promise<Record<s
   return { answer: result.value };
 }
 
-async function latestTranscriptToRag(): Promise<Record<string, unknown>> {
+async function latestTranscriptToRag(body?: Record<string, unknown>): Promise<Record<string, unknown>> {
   const latest = state.transcripts.at(-1);
   if (!latest) return { answer: "No transcript available." };
-  await ingestDocument({ name: `Transcript-${latest.name}.txt`, text: latest.text, route: { capability: "embeddings", mode: "local" } });
+  const route = (body?.route as Partial<RouteRequest> | undefined) ?? { capability: "embeddings", mode: state.config.defaultRoute ?? "local" };
+  await ingestDocument({ name: `Transcript-${latest.name}.txt`, text: latest.text, route });
   return { answer: `Added transcript "${latest.name}" to RAG.`, state };
 }
 
@@ -349,10 +350,15 @@ async function imageStream(body: Record<string, unknown>, res: ServerResponse): 
     const images: Array<{ id: string; prompt: string; path: string; createdAt: string; dataBase64: string }> = [];
     for (let i = 0; i < result.value.length; i += 1) {
       const bytes = result.value[i] ?? new Uint8Array();
+      if (bytes.byteLength === 0) {
+        throw new Error(`Image ${i} has 0 bytes; provider returned empty buffer.`);
+      }
       const path = await store.writeBinary("gallery", `${Date.now()}-${i}.png`, bytes);
       const item = { id: uid(), prompt, path, createdAt: nowIso() };
       state.gallery.unshift(item);
-      images.push({ ...item, dataBase64: Buffer.from(bytes).toString("base64") });
+      const dataBase64 = Buffer.from(bytes).toString("base64");
+      console.log(`[image] received image ${i}: ${bytes.byteLength} bytes, base64 ${dataBase64.length} chars, route=${result.route}`);
+      images.push({ ...item, dataBase64 });
     }
     await save();
     send({ type: "done", images, state });
@@ -375,6 +381,9 @@ async function imageGenerate(body: Record<string, unknown>): Promise<Record<stri
   const images = [];
   for (let i = 0; i < result.value.length; i += 1) {
     const bytes = result.value[i] ?? new Uint8Array();
+    if (bytes.byteLength === 0) {
+      throw new Error(`Image ${i} has 0 bytes; provider returned empty buffer.`);
+    }
     const path = await store.writeBinary("gallery", `${Date.now()}-${i}.png`, bytes);
     const item = { id: uid(), prompt: String(body.prompt ?? ""), path, createdAt: nowIso() };
     state.gallery.unshift(item);

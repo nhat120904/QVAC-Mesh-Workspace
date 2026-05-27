@@ -6,7 +6,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js",
     "pear:dev": "npm run build && pear run --dev .",
-    "dev": "npm run pear:dev"
+    "dev": "npm run pear:dev",
+    "postinstall": "patch-package"
   },
   "pear": {
     "name": "qvac-mesh-workspace",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "patch-package": "^8.0.1",
     "pear": "^2.0.1",
     "pear-interface": "^1.0.0",
     "typescript": "^5.8.3"

@@ -1,0 +1,231 @@
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handler-registry.js b/node_modules/@qvac/sdk/dist/server/rpc/handler-registry.js
+index 0b5f0cc..6535338 100644
+--- a/node_modules/@qvac/sdk/dist/server/rpc/handler-registry.js
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handler-registry.js
+@@ -27,6 +27,11 @@ import { handleFinetune } from "./handlers/finetune.js";
+ import { handleHeartbeatDelegated } from "./handlers/heartbeat-delegated.js";
+ import { handleCancelDelegated } from "./handlers/cancel-delegated.js";
+ import { handleDiffusionStream } from "./handlers/diffusion-stream.js";
++import { handleEmbedDelegated } from "./handlers/embed-delegated.js";
++import { handleTranscribeDelegated } from "./handlers/transcribe-delegated.js";
++import { handleTranslateDelegated } from "./handlers/translate-delegated.js";
++import { handleTextToSpeechDelegated } from "./handlers/text-to-speech-delegated.js";
++import { handleDiffusionStreamDelegated } from "./handlers/diffusion-stream-delegated.js";
+ import { handleUpscaleStream } from "./handlers/upscale-stream.js";
+ import { handlePluginInvoke, handlePluginInvokeStream, } from "./handlers/plugin-invoke.js";
+ import { handleModelRegistryList, handleModelRegistrySearch, handleModelRegistryGetModel, } from "./handlers/registry.js";
+@@ -91,7 +96,12 @@ export const registry = {
+         delegatedHandler: handleUnloadModelDelegated,
+         isDelegated: isModelDelegated,
+     },
+-    embed: { type: "reply", handler: handleEmbed },
++    embed: {
++        type: "reply",
++        handler: handleEmbed,
++        delegatedHandler: handleEmbedDelegated,
++        isDelegated: isModelDelegated,
++    },
+     cancel: {
+         type: "reply",
+         handler: cancelHandler,
+@@ -114,14 +124,34 @@ export const registry = {
+     resume: { type: "reply", handler: handleResume },
+     state: { type: "reply", handler: handleState },
+     // Simple Stream handlers
+-    transcribe: { type: "stream", handler: handleTranscribe },
++    transcribe: {
++        type: "stream",
++        handler: handleTranscribe,
++        delegatedHandler: handleTranscribeDelegated,
++        isDelegated: isModelDelegated,
++    },
+     transcribeStream: { type: "duplex", handler: handleTranscribeStream },
+     loggingStream: { type: "stream", handler: handleLoggingStream },
+-    translate: { type: "stream", handler: handleTranslate },
+-    textToSpeech: { type: "stream", handler: handleTextToSpeech },
++    translate: {
++        type: "stream",
++        handler: handleTranslate,
++        delegatedHandler: handleTranslateDelegated,
++        isDelegated: isModelDelegated,
++    },
++    textToSpeech: {
++        type: "stream",
++        handler: handleTextToSpeech,
++        delegatedHandler: handleTextToSpeechDelegated,
++        isDelegated: isModelDelegated,
++    },
+     textToSpeechStream: { type: "duplex", handler: handleTextToSpeechStream },
+     ocrStream: { type: "stream", handler: handleOCRStream },
+-    diffusionStream: { type: "stream", handler: handleDiffusionStream },
++    diffusionStream: {
++        type: "stream",
++        handler: handleDiffusionStream,
++        delegatedHandler: handleDiffusionStreamDelegated,
++        isDelegated: isModelDelegated,
++    },
+     upscaleStream: { type: "stream", handler: handleUpscaleStream },
+     pluginInvokeStream: { type: "stream", handler: handlePluginInvokeStream },
+     // Handlers with delegation support
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handlers/diffusion-stream-delegated.js b/node_modules/@qvac/sdk/dist/server/rpc/handlers/diffusion-stream-delegated.js
+new file mode 100644
+index 0000000..53cdba9
+--- /dev/null
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handlers/diffusion-stream-delegated.js
+@@ -0,0 +1,27 @@
++import { getModelEntry } from "../../bare/registry/model-registry.js";
++import { getRPC } from "../../bare/delegate-rpc-client.js";
++import { stream } from "../delegate-transport.js";
++import { ModelIsDelegatedError } from "../../../utils/errors-server.js";
++import { getServerLogger } from "../../../logging/index.js";
++const logger = getServerLogger();
++export async function* handleDiffusionStreamDelegated(request, options) {
++    const { profilingMeta } = options ?? {};
++    const entry = getModelEntry(request.modelId);
++    if (!entry?.isDelegated) {
++        throw new ModelIsDelegatedError(request.modelId);
++    }
++    const { providerPublicKey, timeout, healthCheckTimeout } = entry.delegated;
++    logger.debug(`📤 Sending delegated diffusion request to provider: ${providerPublicKey}${timeout ? `, timeout: ${timeout}ms` : ""}`);
++    const rpc = await getRPC(providerPublicKey, { timeout, healthCheckTimeout });
++    const delegateOpts = { peerKey: providerPublicKey };
++    if (profilingMeta) {
++        delegateOpts.profilingMeta = profilingMeta;
++    }
++    if (timeout) {
++        delegateOpts.timeout = timeout;
++    }
++    const responseStream = stream(request, rpc, delegateOpts);
++    for await (const response of responseStream) {
++        yield response;
++    }
++}
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handlers/embed-delegated.js b/node_modules/@qvac/sdk/dist/server/rpc/handlers/embed-delegated.js
+new file mode 100644
+index 0000000..0bbb14d
+--- /dev/null
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handlers/embed-delegated.js
+@@ -0,0 +1,24 @@
++import { getModelEntry } from "../../bare/registry/model-registry.js";
++import { getRPC } from "../../bare/delegate-rpc-client.js";
++import { send } from "../delegate-transport.js";
++import { ModelIsDelegatedError } from "../../../utils/errors-server.js";
++import { getServerLogger } from "../../../logging/index.js";
++const logger = getServerLogger();
++export async function handleEmbedDelegated(request, options) {
++    const { profilingMeta } = options ?? {};
++    const entry = getModelEntry(request.modelId);
++    if (!entry?.isDelegated) {
++        throw new ModelIsDelegatedError(request.modelId);
++    }
++    const { providerPublicKey, timeout, healthCheckTimeout } = entry.delegated;
++    logger.debug(`📤 Sending delegated embed request to provider: ${providerPublicKey}${timeout ? `, timeout: ${timeout}ms` : ""}`);
++    const rpc = await getRPC(providerPublicKey, { timeout, healthCheckTimeout });
++    const delegateOpts = { peerKey: providerPublicKey };
++    if (profilingMeta) {
++        delegateOpts.profilingMeta = profilingMeta;
++    }
++    if (timeout) {
++        delegateOpts.timeout = timeout;
++    }
++    return await send(request, rpc, delegateOpts);
++}
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handlers/text-to-speech-delegated.js b/node_modules/@qvac/sdk/dist/server/rpc/handlers/text-to-speech-delegated.js
+new file mode 100644
+index 0000000..0e59057
+--- /dev/null
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handlers/text-to-speech-delegated.js
+@@ -0,0 +1,27 @@
++import { getModelEntry } from "../../bare/registry/model-registry.js";
++import { getRPC } from "../../bare/delegate-rpc-client.js";
++import { stream } from "../delegate-transport.js";
++import { ModelIsDelegatedError } from "../../../utils/errors-server.js";
++import { getServerLogger } from "../../../logging/index.js";
++const logger = getServerLogger();
++export async function* handleTextToSpeechDelegated(request, options) {
++    const { profilingMeta } = options ?? {};
++    const entry = getModelEntry(request.modelId);
++    if (!entry?.isDelegated) {
++        throw new ModelIsDelegatedError(request.modelId);
++    }
++    const { providerPublicKey, timeout, healthCheckTimeout } = entry.delegated;
++    logger.debug(`📤 Sending delegated textToSpeech request to provider: ${providerPublicKey}${timeout ? `, timeout: ${timeout}ms` : ""}`);
++    const rpc = await getRPC(providerPublicKey, { timeout, healthCheckTimeout });
++    const delegateOpts = { peerKey: providerPublicKey };
++    if (profilingMeta) {
++        delegateOpts.profilingMeta = profilingMeta;
++    }
++    if (timeout) {
++        delegateOpts.timeout = timeout;
++    }
++    const responseStream = stream(request, rpc, delegateOpts);
++    for await (const response of responseStream) {
++        yield response;
++    }
++}
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handlers/transcribe-delegated.js b/node_modules/@qvac/sdk/dist/server/rpc/handlers/transcribe-delegated.js
+new file mode 100644
+index 0000000..15467e3
+--- /dev/null
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handlers/transcribe-delegated.js
+@@ -0,0 +1,27 @@
++import { getModelEntry } from "../../bare/registry/model-registry.js";
++import { getRPC } from "../../bare/delegate-rpc-client.js";
++import { stream } from "../delegate-transport.js";
++import { ModelIsDelegatedError } from "../../../utils/errors-server.js";
++import { getServerLogger } from "../../../logging/index.js";
++const logger = getServerLogger();
++export async function* handleTranscribeDelegated(request, options) {
++    const { profilingMeta } = options ?? {};
++    const entry = getModelEntry(request.modelId);
++    if (!entry?.isDelegated) {
++        throw new ModelIsDelegatedError(request.modelId);
++    }
++    const { providerPublicKey, timeout, healthCheckTimeout } = entry.delegated;
++    logger.debug(`📤 Sending delegated transcribe request to provider: ${providerPublicKey}${timeout ? `, timeout: ${timeout}ms` : ""}`);
++    const rpc = await getRPC(providerPublicKey, { timeout, healthCheckTimeout });
++    const delegateOpts = { peerKey: providerPublicKey };
++    if (profilingMeta) {
++        delegateOpts.profilingMeta = profilingMeta;
++    }
++    if (timeout) {
++        delegateOpts.timeout = timeout;
++    }
++    const responseStream = stream(request, rpc, delegateOpts);
++    for await (const response of responseStream) {
++        yield response;
++    }
++}
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/handlers/translate-delegated.js b/node_modules/@qvac/sdk/dist/server/rpc/handlers/translate-delegated.js
+new file mode 100644
+index 0000000..6721074
+--- /dev/null
++++ b/node_modules/@qvac/sdk/dist/server/rpc/handlers/translate-delegated.js
+@@ -0,0 +1,27 @@
++import { getModelEntry } from "../../bare/registry/model-registry.js";
++import { getRPC } from "../../bare/delegate-rpc-client.js";
++import { stream } from "../delegate-transport.js";
++import { ModelIsDelegatedError } from "../../../utils/errors-server.js";
++import { getServerLogger } from "../../../logging/index.js";
++const logger = getServerLogger();
++export async function* handleTranslateDelegated(request, options) {
++    const { profilingMeta } = options ?? {};
++    const entry = getModelEntry(request.modelId);
++    if (!entry?.isDelegated) {
++        throw new ModelIsDelegatedError(request.modelId);
++    }
++    const { providerPublicKey, timeout, healthCheckTimeout } = entry.delegated;
++    logger.debug(`📤 Sending delegated translate request to provider: ${providerPublicKey}${timeout ? `, timeout: ${timeout}ms` : ""}`);
++    const rpc = await getRPC(providerPublicKey, { timeout, healthCheckTimeout });
++    const delegateOpts = { peerKey: providerPublicKey };
++    if (profilingMeta) {
++        delegateOpts.profilingMeta = profilingMeta;
++    }
++    if (timeout) {
++        delegateOpts.timeout = timeout;
++    }
++    const responseStream = stream(request, rpc, delegateOpts);
++    for await (const response of responseStream) {
++        yield response;
++    }
++}

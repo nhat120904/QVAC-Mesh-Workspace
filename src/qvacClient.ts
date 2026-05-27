@@ -90,7 +90,7 @@ export class QvacWorkspace {
   async embedTexts(texts: string[], routeRequest?: Partial<RouteRequest>): Promise<number[][]> {
     const request: RouteRequest = {
       capability: "embeddings",
-      mode: routeRequest?.mode ?? "local",
+      mode: routeRequest?.mode ?? this.config.defaultRoute ?? "local",
       providerId: routeRequest?.providerId
     };
     const result = await this.withRoute(request, async (route) => {
@@ -164,6 +164,13 @@ export class QvacWorkspace {
           const value = await result.outputs;
           const stats = await result.stats;
           await progressTask;
+          if (!Array.isArray(value) || value.length === 0) {
+            throw new Error("Diffusion returned no image buffers (delegated provider may have failed silently).");
+          }
+          const totalBytes = value.reduce((sum, buf) => sum + (buf?.byteLength ?? 0), 0);
+          if (totalBytes === 0) {
+            throw new Error("Diffusion returned empty image buffers (0 bytes).");
+          }
           return { value, stats };
         } catch (error) {
           await progressTask;
