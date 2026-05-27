@@ -16,6 +16,7 @@ let providerPublicKey: string | undefined;
 let statuses: ModelLoadStatus[] = [];
 let mediaRecorder: MediaRecorder | undefined;
 let recordedChunks: Blob[] = [];
+let galleryCache: Array<{ prompt: string; src: string }> = [];
 
 void boot().catch((error) => {
   const target = document.querySelector("#status-cards");
@@ -40,6 +41,18 @@ async function boot(): Promise<void> {
   bindImages();
   bindMesh();
   renderAll();
+  void loadGalleryCache();
+}
+
+async function loadGalleryCache(): Promise<void> {
+  try {
+    const response = await api("/gallery/images");
+    const images = (response.images ?? []) as Array<{ prompt: string; dataBase64: string }>;
+    galleryCache = images.map((img) => ({ prompt: img.prompt, src: `data:image/png;base64,${img.dataBase64}` }));
+    renderGallery();
+  } catch {
+    // non-critical — gallery cache stays empty
+  }
 }
 
 async function waitForState(): Promise<void> {
@@ -846,11 +859,12 @@ function renderProviders(): void {
 }
 
 function renderGallery(images?: GeneratedImage[]): void {
-  const fromState = (state.gallery ?? []).slice(0, 12).map((image) => ({ prompt: image.prompt, src: "" }));
-  const generated = images?.map((image) => ({ prompt: image.prompt, src: `data:image/png;base64,${image.dataBase64}` })) ?? [];
-  const all = generated.length ? generated : fromState.filter((entry) => entry.src);
-  qs("#gallery").innerHTML = all.length
-    ? all
+  if (images?.length) {
+    const newEntries = images.map((image) => ({ prompt: image.prompt, src: `data:image/png;base64,${image.dataBase64}` }));
+    galleryCache = [...newEntries, ...galleryCache];
+  }
+  qs("#gallery").innerHTML = galleryCache.length
+    ? galleryCache
         .map(
           (image) =>
             `<figure><img src="${image.src}" alt="${escapeAttr(image.prompt)}" /><figcaption>${escapeHtml(image.prompt)}</figcaption></figure>`

@@ -125,6 +125,8 @@ async function route(pathname: string, body: unknown): Promise<Record<string, un
   switch (pathname) {
     case "/state":
       return statePayload();
+    case "/gallery/images":
+      return await galleryImages();
     case "/config/save":
       state.config = asRecord(body).config as AppState["config"];
       await qvac.unloadAll();
@@ -473,6 +475,20 @@ async function saveUploads(files: UploadInput[], bucket: string): Promise<string
 
 async function save(): Promise<void> {
   await store.save(state);
+}
+
+async function galleryImages(): Promise<Record<string, unknown>> {
+  const items = await Promise.all(
+    (state.gallery ?? []).map(async (item) => {
+      try {
+        const bytes = await readFile(item.path);
+        return { id: item.id, prompt: item.prompt, createdAt: item.createdAt, dataBase64: bytes.toString("base64") };
+      } catch {
+        return null;
+      }
+    })
+  );
+  return { images: items.filter(Boolean) };
 }
 
 function statePayload(): Record<string, unknown> {
