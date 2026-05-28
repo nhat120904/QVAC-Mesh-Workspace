@@ -192,7 +192,7 @@ index 0000000..e5a9b9f
 +        if (typeof obj === "object") {
 +            if (obj.type === "filePath" && typeof obj.value === "string") {
 +                try {
-+                    if (typeof process !== "undefined" && process?.versions?.node) {
++                    if (typeof process !== "undefined") {
 +                        const fs = await import("node:fs/promises");
 +                        const data = await fs.readFile(obj.value);
 +                        return { type: "base64", value: data.toString("base64") };

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import * as qvac from "@qvac/sdk";
 import type { CompletionEvent, LoadModelOptions, ModelProgressUpdate } from "@qvac/sdk";
 import { setupText } from "./defaults.js";
@@ -109,7 +110,12 @@ export class QvacWorkspace {
   async transcribe(audioPath: string, routeRequest: RouteRequest): Promise<RoutedResult<string>> {
     return this.withRoute(routeRequest, async (route) => {
       const modelId = await this.load("transcription", route);
-      const text = await qvac.transcribe({ modelId, audioChunk: audioPath });
+      // When delegating to a remote provider, send audio as a Buffer (base64)
+      // instead of a local file path the provider cannot access.
+      const audioChunk: string | Buffer = route.provider
+        ? await readFile(audioPath)
+        : audioPath;
+      const text = await qvac.transcribe({ modelId, audioChunk });
       return { value: text };
     });
   }
