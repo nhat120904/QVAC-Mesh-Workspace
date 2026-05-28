@@ -229,3 +229,40 @@ index 0000000..6721074
 +        yield response;
 +    }
 +}
+
+diff --git a/node_modules/@qvac/sdk/dist/server/worker.js b/node_modules/@qvac/sdk/dist/server/worker.js
+index 2d8f2f5..b0c6f20 100644
+--- a/node_modules/@qvac/sdk/dist/server/worker.js
++++ b/node_modules/@qvac/sdk/dist/server/worker.js
+@@ -1,16 +1,25 @@
+ /**
+- * Default worker entry point that registers ALL built-in plugins.
++ * Default worker entry point that registers built-in plugins.
+     */
+ import { initializeWorkerCore, ensureRPCSetup } from "./worker-core.js";
+ import { registerPlugin } from "./plugins/index.js";
+ import { getServerLogger } from "../logging/index.js";
+-import { llmPlugin, embeddingsPlugin, whisperPlugin, parakeetPlugin, nmtPlugin, ttsPlugin, ocrPlugin, diffusionPlugin, } from "./bare/plugins/index.js";
++import { llmPlugin } from "./bare/plugins/llamacpp-completion/plugin.js";
++import { whisperPlugin } from "./bare/plugins/whispercpp-transcription/plugin.js";
++import { parakeetPlugin } from "./bare/plugins/parakeet-transcription/plugin.js";
++import { nmtPlugin } from "./bare/plugins/nmtcpp-translation/plugin.js";
++import { ttsPlugin } from "./bare/plugins/onnx-tts/plugin.js";
++import { ocrPlugin } from "./bare/plugins/onnx-ocr/plugin.js";
++import { diffusionPlugin } from "./bare/plugins/sdcpp-generation/plugin.js";
+ const { hasRPCConfig } = initializeWorkerCore();
+ const logger = getServerLogger();
+ logger.info("🐻 Hello from Bare");
+ // Register all built-in plugins
+ registerPlugin(llmPlugin);
+-registerPlugin(embeddingsPlugin);
++try {
++    const { embeddingsPlugin } = await import("./bare/plugins/llamacpp-embedding/plugin.js");
++    registerPlugin(embeddingsPlugin);
++}
++catch (error) {
++    logger.warn("Skipping embeddings plugin because the native addon could not be loaded:", error);
++}
+ registerPlugin(whisperPlugin);
+ registerPlugin(parakeetPlugin);
+ registerPlugin(nmtPlugin);
