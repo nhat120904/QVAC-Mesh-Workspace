@@ -60,8 +60,13 @@ export class QvacWorkspace {
   }
 
   async complete(input: CompletionInput, routeRequest: RouteRequest): Promise<RoutedResult<string>> {
-    return this.withRoute(routeRequest, async (route) => {
-      const capability = input.attachments?.length ? "multimodal" : routeRequest.capability;
+    const hasAttachments = Boolean(input.attachments?.length);
+    const capability: Capability = hasAttachments ? "multimodal" : routeRequest.capability;
+    const effectiveRequest: RouteRequest = hasAttachments
+      ? { capability: "multimodal", mode: "local", providerId: routeRequest.providerId }
+      : routeRequest;
+
+    return this.withRoute(effectiveRequest, async (route) => {
       const modelId = await this.load(capability, route);
       const history = [
         ...(input.history ?? []).map((message) => ({ role: message.role, content: message.content })),
