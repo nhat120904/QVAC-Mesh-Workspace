@@ -266,3 +266,74 @@ index 2d8f2f5..b0c6f20 100644
  registerPlugin(whisperPlugin);
  registerPlugin(parakeetPlugin);
  registerPlugin(nmtPlugin);
+
+diff --git a/node_modules/@qvac/sdk/dist/server/rpc/delegate-transport.js b/node_modules/@qvac/sdk/dist/server/rpc/delegate-transport.js
+index 3f4a1c2..9a7b8e1 100644
+--- a/node_modules/@qvac/sdk/dist/server/rpc/delegate-transport.js
++++ b/node_modules/@qvac/sdk/dist/server/rpc/delegate-transport.js
+@@
+ import { getNextCommandId } from "./rpc-utils.js";
+
+ let _fsModule = null;
+ async function getFsModule() {
+      if (_fsModule !== null)
+           return _fsModule;
+      try {
+           _fsModule = await import("fs");
+           return _fsModule;
+      }
+      catch (e) {
+           _fsModule = undefined;
+           return undefined;
+      }
+ }
+
+ async function inlineLocalFileChunks(obj) {
+      if (obj === null || obj === undefined)
+           return obj;
+      if (Array.isArray(obj)) {
+           return await Promise.all(obj.map(inlineLocalFileChunks));
+      }
+      if (typeof obj === "object") {
+           // If this object is an audio/file chunk with a local filePath, inline it as base64
+           if (obj.type === "filePath" && typeof obj.value === "string") {
+                try {
+                     const filePath = obj.value;
+                     // Only attempt to inline absolute/local filesystem paths
+                     if (filePath && (filePath[0] === "/" || /^[A-Za-z]:\\\\/.test(filePath))) {
+                          const fs = await getFsModule();
+                          if (!fs || !fs.promises)
+                               return obj;
+                          const data = await fs.promises.readFile(filePath);
+                          return { type: "base64", value: data.toString("base64") };
+                     }
+                }
+                catch (err) {
+                     // If reading fails, rethrow as-is to let callers handle (will become AUDIO_FILE_NOT_FOUND)
+                     throw err;
+                }
+           }
+           const out = {};
+           for (const [k, v] of Object.entries(obj)) {
+                out[k] = await inlineLocalFileChunks(v);
+           }
+           return out;
+      }
+      return obj;
+ }
+@@
+-        const parsedRequest = requestSchema.parse(request);
++        const inlined = await inlineLocalFileChunks(request);
++        const parsedRequest = requestSchema.parse(inlined);
+@@
+-        const parsedRequest = requestSchema.parse(request);
++        const inlined = await inlineLocalFileChunks(request);
++        const parsedRequest = requestSchema.parse(inlined);
+@@
+-        const parsedRequest = requestSchema.parse(request);
++        const inlined = await inlineLocalFileChunks(request);
++        const parsedRequest = requestSchema.parse(inlined);
+@@
+-        const parsedRequest = requestSchema.parse(request);
++        const inlined = await inlineLocalFileChunks(request);
++        const parsedRequest = requestSchema.parse(inlined);
