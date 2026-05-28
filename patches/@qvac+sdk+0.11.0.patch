@@ -330,7 +330,7 @@ index 3f4a1c2..9a7b8e1 100644
                 try {
                      const filePath = obj.value;
                      // Only attempt to inline absolute/local filesystem paths
-                     if (filePath && (filePath[0] === "/" || /^[A-Za-z]:\\\\/.test(filePath))) {
+                     if (filePath && (filePath[0] === "/" || /^[A-Za-z]:\\/.test(filePath))) {
                           const fs = await getFsModule();
                           if (!fs || !fs.promises)
                                return obj;
