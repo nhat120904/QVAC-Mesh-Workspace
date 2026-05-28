@@ -39,7 +39,12 @@ const modelDefaults: Record<Capability, ModelConfig> = {
     modelConfig: {
       engine: "Bergamot",
       from: "vi",
-      to: "en"
+      to: "en",
+      // Bergamot VI-EN ships a shared SentencePiece vocab; auto-derivation
+      // only kicks in for raw `pear://` / `registry://` strings, so we point
+      // both sides at the shared vocab explicitly.
+      srcVocabSrc: "registry://s3/qvac_models_compiled/bergamot/bergamot-vien/2025-12-18/vocab.vien.spm",
+      dstVocabSrc: "registry://s3/qvac_models_compiled/bergamot/bergamot-vien/2025-12-18/vocab.vien.spm"
     }
   },
   tts: {

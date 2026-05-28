@@ -122,9 +122,13 @@ export class QvacWorkspace {
         const params =
           translationModel.modelType === "llm" || translationModel.modelType === "llamacpp-completion"
             ? { modelId, text, stream: true, modelType: translationModel.modelType, from, to }
-            : { modelId, text, stream: true, modelType: translationModel.modelType };
+            : { modelId, text, stream: true, modelType: translationModel.modelType, from, to };
         const result = qvac.translate(params as Parameters<typeof qvac.translate>[0]);
-        return { value: await result.text, stats: await result.stats };
+        // In streaming mode the SDK's `text` promise resolves to "" — we must
+        // consume `tokenStream` ourselves to assemble the final translation.
+        let buffer = "";
+        for await (const token of result.tokenStream) buffer += token;
+        return { value: buffer, stats: await result.stats };
       });
     }
 
