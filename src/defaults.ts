@@ -34,12 +34,12 @@ const modelDefaults: Record<Capability, ModelConfig> = {
   },
   translation: {
     enabled: false,
-    modelSrc: "BERGAMOT_EN_VI",
+    modelSrc: "BERGAMOT_VI_EN",
     modelType: "nmtcpp-translation",
     modelConfig: {
       engine: "Bergamot",
-      from: "en",
-      to: "vi"
+      from: "vi",
+      to: "en"
     }
   },
   tts: {

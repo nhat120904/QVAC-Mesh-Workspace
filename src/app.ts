@@ -900,8 +900,9 @@ async function runVoiceTurn(): Promise<void> {
   const entry = appendVoice("Running voice assistant...");
   try {
     const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
+    const wav = await blobToWav(blob, 16000);
     const response = await api("/voice/turn", {
-      file: (await filesToUploads([new File([blob], `voice-${Date.now()}.webm`, { type: blob.type })]))[0],
+      file: (await filesToUploads([new File([wav as BlobPart], `voice-${Date.now()}.wav`, { type: "audio/wav" })]))[0],
       route: routeFromSelect("voice-route", "llm", "voice-provider")
     });
     const turn = response.turn as { transcript: string; response: string };
@@ -940,6 +941,52 @@ async function api(path: string, body?: unknown): Promise<Record<string, unknown
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function blobToWav(blob: Blob, targetSampleRate: number): Promise<Uint8Array> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const decodeCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+  let decoded: AudioBuffer;
+  try {
+    decoded = await decodeCtx.decodeAudioData(arrayBuffer.slice(0));
+  } finally {
+    await decodeCtx.close();
+  }
+  const channels = decoded.numberOfChannels;
+  const mono = new Float32Array(decoded.length);
+  for (let ch = 0; ch < channels; ch += 1) {
+    const data = decoded.getChannelData(ch);
+    for (let i = 0; i < data.length; i += 1) mono[i] += data[i] / channels;
+  }
+  const ratio = decoded.sampleRate / targetSampleRate;
+  const outLength = Math.floor(mono.length / ratio);
+  const samples = new Int16Array(outLength);
+  for (let i = 0; i < outLength; i += 1) {
+    const sample = mono[Math.floor(i * ratio)] ?? 0;
+    const clamped = Math.max(-1, Math.min(1, sample));
+    samples[i] = Math.round(clamped * 32767);
+  }
+  const dataBytes = new Uint8Array(samples.buffer);
+  const wav = new Uint8Array(44 + dataBytes.byteLength);
+  const view = new DataView(wav.buffer);
+  const writeAscii = (offset: number, text: string): void => {
+    for (let i = 0; i < text.length; i += 1) wav[offset + i] = text.charCodeAt(i);
+  };
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes.byteLength, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, targetSampleRate, true);
+  view.setUint32(28, targetSampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, "data");
+  view.setUint32(40, dataBytes.byteLength, true);
+  wav.set(dataBytes, 44);
+  return wav;
 }
 
 async function filesToUploads(files: FileList | File[] | null, limit = Infinity): Promise<UploadInput[]> {

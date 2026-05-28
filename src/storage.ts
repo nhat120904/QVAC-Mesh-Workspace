@@ -144,6 +144,7 @@ function isBrokenStoredModel(capability: keyof AppConfig["models"], stored: AppC
   if (capability === "translation") {
     const engine = (cfg as { engine?: unknown }).engine;
     if (engine !== undefined && engine !== "Bergamot" && engine !== "IndicTrans") return true;
+    if (stored.modelSrc === "BERGAMOT_EN_VI") return true;
   }
   if (capability === "tts") {
     const ttsEngine = (cfg as { ttsEngine?: unknown }).ttsEngine;
